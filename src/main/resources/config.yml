@@ -23,7 +23,7 @@ target-info:
   sneak-distance: 3.0
   max-distance: 5
   update-ticks: 5
-  show-name: true
+  show-name: false
   show-rarity: true
   show-enchantments: true
   show-combat-stats: true
