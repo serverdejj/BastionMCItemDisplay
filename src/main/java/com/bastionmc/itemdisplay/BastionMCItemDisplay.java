@@ -13,6 +13,7 @@ import org.bukkit.event.*;
 import org.bukkit.event.entity.*;
 import org.bukkit.event.player.*;
 import org.bukkit.inventory.ItemStack;
+import org.bukkit.inventory.EquipmentSlot;
 import org.bukkit.inventory.meta.ItemMeta;
 import org.bukkit.NamespacedKey;
 import org.bukkit.persistence.PersistentDataType;
@@ -320,6 +321,59 @@ public final class BastionMCItemDisplay extends JavaPlugin implements Listener, 
         }
         for (UUID id : new HashSet<>(detailLabels.keySet())) if (!relevant.containsKey(id)) removeDetail(id);
     }
+    private String roman(int n) {
+        if (!getConfig().getBoolean("enchantments.use-roman-numerals", true) || n <= 0 || n > 3999) return Integer.toString(n);
+        StringBuilder out = new StringBuilder();
+        int[] values = {1000,900,500,400,100,90,50,40,10,9,5,4,1};
+        String[] glyphs = {"M","CM","D","CD","C","XC","L","XL","X","IX","V","IV","I"};
+        for (int i=0; i<values.length; i++) while (n>=values[i]) { out.append(glyphs[i]); n-=values[i]; }
+        return out.toString();
+    }
+    private String enchantmentName(String key) {
+        String path = "enchantments.names." + key;
+        if (getConfig().contains(path)) return getConfig().getString(path, key);
+        return key.replace('_', ' ');
+    }
+    private double armorPoints(ItemStack stack) {
+        // Vanilla material protection. Can be overridden for custom items in config.
+        String material = stack.getType().name();
+        String slot;
+        if (material.endsWith("_HELMET") || material.equals("TURTLE_HELMET")) slot="helmet";
+        else if (material.endsWith("_CHESTPLATE") || material.equals("ELYTRA")) slot="chestplate";
+        else if (material.endsWith("_LEGGINGS")) slot="leggings";
+        else if (material.endsWith("_BOOTS")) slot="boots";
+        else return 0;
+        if (getConfig().contains("armor-display.material-overrides." + material))
+            return Math.max(0, getConfig().getDouble("armor-display.material-overrides." + material));
+        String tier = material.split("_")[0];
+        if (material.equals("TURTLE_HELMET")) return 2;
+        if (material.equals("ELYTRA")) return 0;
+        return switch (tier) {
+            case "LEATHER" -> switch(slot) {case "helmet"->1;case "chestplate"->3;case "leggings"->2;default->1;};
+            case "GOLDEN" -> switch(slot) {case "helmet"->2;case "chestplate"->5;case "leggings"->3;default->1;};
+            case "CHAINMAIL" -> switch(slot) {case "helmet"->2;case "chestplate"->5;case "leggings"->4;default->1;};
+            case "IRON" -> switch(slot) {case "helmet"->2;case "chestplate"->6;case "leggings"->5;default->2;};
+            case "DIAMOND", "NETHERITE" -> switch(slot) {case "helmet"->3;case "chestplate"->8;case "leggings"->6;default->3;};
+            default -> 0;
+        };
+    }
+    private Component armorIcons(double points) {
+        int max = Math.max(1, getConfig().getInt("armor-display.max-icons", 10));
+        String full = getConfig().getString("armor-display.icons.full", "■");
+        String half = getConfig().getString("armor-display.icons.half", "◧");
+        String empty = getConfig().getString("armor-display.icons.empty", "□");
+        String fullColor = getConfig().getString("armor-display.colors.full", "&7");
+        String halfColor = getConfig().getString("armor-display.colors.half", "&7");
+        String emptyColor = getConfig().getString("armor-display.colors.empty", "&8");
+        Component result = Component.empty();
+        for (int i=0;i<max;i++) {
+            double remaining = points - i*2;
+            if (remaining >= 2) result = result.append(colored(fullColor + full));
+            else if (remaining >= 1) result = result.append(colored(halfColor + half));
+            else if (getConfig().getBoolean("armor-display.show-empty-icons", false)) result = result.append(colored(emptyColor + empty));
+        }
+        return result;
+    }
     private List<Component> infoParts(ItemStack stack) {
         List<Component> parts = new ArrayList<>();
         if (getConfig().getBoolean("target-info.show-name", true)) parts.add(itemName(stack));
@@ -328,17 +382,31 @@ public final class BastionMCItemDisplay extends JavaPlugin implements Listener, 
         if (getConfig().getBoolean("target-info.show-enchantments", true) && !stack.getEnchantments().isEmpty()) {
             int max = Math.max(1, getConfig().getInt("target-info.max-enchantments", 2));
             StringJoiner join = new StringJoiner(", ");
-            stack.getEnchantments().entrySet().stream().limit(max).forEach(e -> join.add(e.getKey().getKey().getKey() + " " + e.getValue()));
+            stack.getEnchantments().entrySet().stream().limit(max).forEach(e -> join.add(enchantmentName(e.getKey().getKey().getKey()) + " " + roman(e.getValue())));
             if (stack.getEnchantments().size() > max) join.add("+" + (stack.getEnchantments().size() - max));
-            parts.add(colored("&b" + join));
+            parts.add(colored(getConfig().getString("enchantments.color", "&b") + join));
+        }
+        if (getConfig().getBoolean("armor-display.enabled", true)) {
+            double armor = armorPoints(stack);
+            if (armor > 0) {
+                Component line = colored(getConfig().getString("armor-display.prefix", "&7Armadura: "));
+                if (getConfig().getBoolean("armor-display.show-icons", true)) line = line.append(armorIcons(armor));
+                if (getConfig().getBoolean("armor-display.show-armor-points", true))
+                    line = line.append(colored(" &8(" + (armor == Math.floor(armor) ? Integer.toString((int)armor) : Double.toString(armor)) + ")"));
+                parts.add(line);
+            }
         }
         if (getConfig().getBoolean("target-info.show-combat-stats", true) && stack.hasItemMeta()) {
             ItemMeta meta = stack.getItemMeta();
             Multimap<Attribute, AttributeModifier> modifiers = meta.getAttributeModifiers();
             if (modifiers != null && !modifiers.isEmpty()) {
                 StringJoiner stats = new StringJoiner(", ");
-                modifiers.entries().stream().limit(2).forEach(e -> stats.add(e.getKey().getKey().getKey() + " " + String.format(Locale.US, "%+.1f", e.getValue().getAmount())));
-                parts.add(colored("&c" + stats));
+                modifiers.entries().stream().filter(e -> !e.getKey().getKey().getKey().equals("armor")).limit(2).forEach(e -> {
+                    String key = e.getKey().getKey().getKey();
+                    String name = getConfig().getString("attributes.names." + key, key.replace('_',' '));
+                    stats.add(name + " " + String.format(Locale.US, "%+.1f", e.getValue().getAmount()));
+                });
+                if (stats.length() > 0) parts.add(colored("&c" + stats));
             }
         }
         if (getConfig().getBoolean("target-info.show-amount", true)) parts.add(colored("&7x" + stack.getAmount()));

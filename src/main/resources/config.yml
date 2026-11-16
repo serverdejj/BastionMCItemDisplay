@@ -75,3 +75,77 @@ messages:
   rarity-reset: '&aRareza personalizada eliminada. Se usará la rareza nativa.'
   invalid-rarity: '&cRareza no válida.'
   reloaded: '&aConfiguración recargada.'
+
+# Traducciones editables. Para encantamientos de otros plugins se usa su clave como respaldo.
+enchantments:
+  use-roman-numerals: true
+  color: '&b'
+  names:
+    sharpness: 'Filo'
+    smite: 'Castigo'
+    bane_of_arthropods: 'Perdición de los artrópodos'
+    knockback: 'Empuje'
+    fire_aspect: 'Aspecto ígneo'
+    looting: 'Saqueo'
+    sweeping_edge: 'Filo arrasador'
+    efficiency: 'Eficiencia'
+    silk_touch: 'Toque de seda'
+    unbreaking: 'Irrompibilidad'
+    fortune: 'Fortuna'
+    power: 'Poder'
+    punch: 'Retroceso'
+    flame: 'Fuego'
+    infinity: 'Infinidad'
+    protection: 'Protección'
+    fire_protection: 'Protección contra el fuego'
+    feather_falling: 'Caída de pluma'
+    blast_protection: 'Protección contra explosiones'
+    projectile_protection: 'Protección contra proyectiles'
+    respiration: 'Respiración'
+    aqua_affinity: 'Afinidad acuática'
+    thorns: 'Espinas'
+    depth_strider: 'Agilidad acuática'
+    frost_walker: 'Paso helado'
+    binding_curse: 'Maldición de ligamiento'
+    vanishing_curse: 'Maldición de desaparición'
+    mending: 'Reparación'
+    swift_sneak: 'Sigilo veloz'
+    soul_speed: 'Velocidad del alma'
+    lure: 'Atracción'
+    luck_of_the_sea: 'Suerte marina'
+    loyalty: 'Lealtad'
+    impaling: 'Empalamiento'
+    riptide: 'Propulsión acuática'
+    channeling: 'Conductividad'
+    multishot: 'Multidisparo'
+    quick_charge: 'Carga rápida'
+    piercing: 'Perforación'
+    density: 'Densidad'
+    breach: 'Brecha'
+    wind_burst: 'Ráfaga de viento'
+
+# Símbolos editables SIN paquete de recursos.
+# No son la textura exacta de la barra de armadura de Minecraft.
+armor-display:
+  enabled: true
+  prefix: '&7Armadura: '
+  show-icons: true
+  show-empty-icons: false
+  show-armor-points: true
+  max-icons: 10
+  icons:
+    full: '■'
+    half: '◧'
+    empty: '□'
+  colors:
+    full: '&7'
+    half: '&7'
+    empty: '&8'
+  # Valores para armaduras especiales si necesitas ajustar su defensa.
+  material-overrides: {}
+attributes:
+  names:
+    attack_damage: 'Daño de ataque'
+    attack_speed: 'Velocidad de ataque'
+    armor_toughness: 'Dureza de armadura'
+    knockback_resistance: 'Resistencia al empuje'

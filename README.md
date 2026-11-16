@@ -19,3 +19,7 @@ Proyecto fuente para **Purpur 1.21.11 / Java 21**. Subir a GitHub y compilar con
 ## Advertencias
 
 **BETA NO PROBADA**: se requiere compilación y pruebas en un servidor de pruebas antes de usar en producción. Los TextDisplay por objeto pueden afectar al rendimiento en zonas con miles de objetos; ajustar distancias y períodos en config.yml. Si se usa otro plugin de etiquetas de objetos (como ItemStacker), desactivar su función de nombres para evitar duplicados.
+
+
+## Actualización 0.2.1
+Encantamientos traducidos al español en `config.yml`, niveles romanos e iconos de armadura configurables sin resource pack. Los iconos son caracteres Unicode, no la textura vanilla. Los puntos de armadura se calculan por material vanilla, con overrides configurables para objetos especiales; no representan necesariamente modificadores personalizados de otros plugins.
