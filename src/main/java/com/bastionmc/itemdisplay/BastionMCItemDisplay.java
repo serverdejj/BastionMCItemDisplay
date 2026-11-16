@@ -18,6 +18,10 @@ import org.bukkit.NamespacedKey;
 import org.bukkit.persistence.PersistentDataType;
 import org.bukkit.plugin.java.JavaPlugin;
 import org.bukkit.scheduler.BukkitTask;
+import org.bukkit.scoreboard.Scoreboard;
+import org.bukkit.scoreboard.Team;
+import org.bukkit.util.Transformation;
+import org.joml.Vector3f;
 import org.bukkit.util.RayTraceResult;
 import org.bukkit.util.Vector;
 import com.google.common.collect.Multimap;
@@ -28,6 +32,9 @@ import java.util.regex.*;
 public final class BastionMCItemDisplay extends JavaPlugin implements Listener, CommandExecutor, TabCompleter {
     private NamespacedKey rarityKey;
     private final Map<UUID, TextDisplay> labels = new HashMap<>();
+    private final Map<UUID, TextDisplay> detailLabels = new HashMap<>();
+    private final Map<UUID, Set<UUID>> detailViewers = new HashMap<>();
+    private final Map<UUID, String> glowTeams = new HashMap<>();
     private final Map<UUID, Boolean> oldGlow = new HashMap<>();
     private final List<BukkitTask> tasks = new ArrayList<>();
     private static final List<String> RARITIES = List.of("comun", "pococomun", "raro", "epico", "legendario", "mitico");
@@ -45,12 +52,12 @@ public final class BastionMCItemDisplay extends JavaPlugin implements Listener, 
         startTasks();
         getLogger().info("BastionMCItemDisplay beta habilitado. Probar en Purpur 1.21.11.");
     }
-    @Override public void onDisable() { stopTasks(); clearLabels(); }
+    @Override public void onDisable() { stopTasks(); clearLabels(); clearDetails(); clearTeams(); }
     private void stopTasks() { tasks.forEach(BukkitTask::cancel); tasks.clear(); }
     private void startTasks() {
         stopTasks();
-        long labelsPeriod = Math.max(2L, getConfig().getLong("display.update-ticks", 5));
-        long targetPeriod = Math.max(2L, getConfig().getLong("target-info.update-ticks", 5));
+        long labelsPeriod = Math.max(1L, getConfig().getLong("display.update-ticks", 1));
+        long targetPeriod = Math.max(1L, getConfig().getLong("target-info.update-ticks", 2));
         long effectsPeriod = Math.max(5L, getConfig().getLong("effects.update-ticks", 20));
         tasks.add(Bukkit.getScheduler().runTaskTimer(this, this::updateLabels, 1L, labelsPeriod));
         tasks.add(Bukkit.getScheduler().runTaskTimer(this, this::updateTargets, 3L, targetPeriod));
@@ -146,7 +153,7 @@ public final class BastionMCItemDisplay extends JavaPlugin implements Listener, 
             UUID id = item.getUniqueId(); active.add(id);
             TextDisplay display = labels.get(id);
             if (display == null || !display.isValid()) {
-                display = world.spawn(item.getLocation(), TextDisplay.class, entity -> {
+                display = world.spawn(item.getLocation().add(0, getConfig().getDouble("display.height-offset", 0.35), 0), TextDisplay.class, entity -> {
                     entity.setPersistent(false);
                     entity.setBillboard(Display.Billboard.CENTER);
                     entity.setShadowed(getConfig().getBoolean("display.shadow", true));
@@ -154,15 +161,24 @@ public final class BastionMCItemDisplay extends JavaPlugin implements Listener, 
                     entity.setDefaultBackground(false);
                     entity.setBackgroundColor(Color.fromARGB(0, 0, 0, 0));
                     entity.setInvulnerable(true);
+                    entity.setTeleportDuration(1);
+                    entity.setInterpolationDuration(1);
                 });
                 labels.put(id, display);
             }
-            display.teleport(item.getLocation().add(0, getConfig().getDouble("display.height-offset", 0.55), 0));
+            display.teleport(item.getLocation().add(0, getConfig().getDouble("display.height-offset", 0.35), 0));
+            scale(display, getConfig().getDouble("display.scale", 0.65));
             display.text(label(item.getItemStack()));
         }
         for (UUID id : new HashSet<>(labels.keySet())) if (!active.contains(id)) removeLabel(id);
     }
+    private void scale(TextDisplay d, double value) {
+        float v = (float)Math.max(0.1, Math.min(3, value));
+        Transformation t = d.getTransformation();
+        if (Math.abs(t.getScale().x - v) > 0.001) { t.getScale().set(v, v, v); d.setTransformation(t); }
+    }
     private void removeLabel(UUID id) {
+        removeDetail(id);
         TextDisplay display = labels.remove(id);
         if (display != null && display.isValid()) display.remove();
     }
@@ -185,6 +201,7 @@ public final class BastionMCItemDisplay extends JavaPlugin implements Listener, 
                 seen.add(id);
                 if (!oldGlow.containsKey(id)) oldGlow.put(id, item.isGlowing());
                 item.setGlowing(true);
+                assignGlowTeam(item, key);
             } else if (oldGlow.containsKey(id)) restoreGlow(item);
             if (!isNearby(item, range) || count == 0 || !getConfig().getBoolean("rarities." + key + ".particles", false)) continue;
             try {
@@ -200,27 +217,108 @@ public final class BastionMCItemDisplay extends JavaPlugin implements Listener, 
             else oldGlow.remove(id);
         }
     }
-    private void restoreGlow(Item item) { Boolean prior = oldGlow.remove(item.getUniqueId()); if (prior != null && item.isValid()) item.setGlowing(prior); }
+    private void assignGlowTeam(Item item, String rarity) {
+        // Scoreboard teams provide the colored outline; may conflict with other scoreboard plugins.
+        if (!getConfig().getBoolean("effects.colored-glow", true)) return;
+        String teamName = "bid_" + rarity.substring(0, Math.min(10, rarity.length()));
+        Scoreboard board = Bukkit.getScoreboardManager().getMainScoreboard();
+        Team team = board.getTeam(teamName);
+        if (team == null) team = board.registerNewTeam(teamName);
+        String hex = getConfig().getString("rarities." + rarity + ".color", "#FFFFFF");
+        NamedTextColor nearest = NamedTextColor.nearestTo(net.kyori.adventure.text.format.TextColor.fromHexString(hex));
+        team.color(nearest);
+        String entry = item.getUniqueId().toString();
+        String old = glowTeams.put(item.getUniqueId(), teamName);
+        if (old != null && !old.equals(teamName)) {
+            Team previous = board.getTeam(old);
+            if (previous != null) previous.removeEntry(entry);
+        }
+        team.addEntry(entry);
+    }
+    private void clearTeam(Item item) {
+        String name = glowTeams.remove(item.getUniqueId());
+        if (name == null) return;
+        Team team = Bukkit.getScoreboardManager().getMainScoreboard().getTeam(name);
+        if (team != null) team.removeEntry(item.getUniqueId().toString());
+    }
+    private void clearTeams() {
+        Scoreboard board = Bukkit.getScoreboardManager().getMainScoreboard();
+        for (Map.Entry<UUID, String> e : glowTeams.entrySet()) {
+            Team team = board.getTeam(e.getValue());
+            if (team != null) team.removeEntry(e.getKey().toString());
+        }
+        glowTeams.clear();
+        for (String rarity : RARITIES) {
+            Team team = board.getTeam("bid_" + rarity);
+            if (team != null && team.getEntries().isEmpty()) team.unregister();
+        }
+    }
+    private void restoreGlow(Item item) { clearTeam(item); Boolean prior = oldGlow.remove(item.getUniqueId()); if (prior != null && item.isValid()) item.setGlowing(prior); }
     private void restoreGlow() { for (UUID id : new HashSet<>(oldGlow.keySet())) {
         Entity e = Bukkit.getEntity(id); if (e instanceof Item item) restoreGlow(item); else oldGlow.remove(id);
     } }
+    private void removeDetail(UUID id) {
+        TextDisplay d = detailLabels.remove(id);
+        if (d != null && d.isValid()) d.remove();
+        detailViewers.remove(id);
+    }
+    private void clearDetails() { for (UUID id : new HashSet<>(detailLabels.keySet())) removeDetail(id); }
     private void updateTargets() {
-        if (!getConfig().getBoolean("target-info.enabled", true)) return;
+        if (!getConfig().getBoolean("target-info.enabled", true)) { clearDetails(); return; }
         double maxDistance = Math.max(1, getConfig().getDouble("target-info.max-distance", 5));
+        double proximity = Math.max(0, getConfig().getDouble("target-info.proximity-distance", 1));
+        double sneakDistance = Math.max(0, getConfig().getDouble("target-info.sneak-distance", 3));
+        Map<UUID, Set<UUID>> visible = new HashMap<>();
+        Map<UUID, Item> relevant = new HashMap<>();
         for (Player player : Bukkit.getOnlinePlayers()) {
-            Location eye = player.getEyeLocation(); Vector direction = eye.getDirection();
-            RayTraceResult hit = player.getWorld().rayTraceEntities(eye, direction, maxDistance, 0.35,
+            Location eye = player.getEyeLocation();
+            RayTraceResult hit = player.getWorld().rayTraceEntities(eye, eye.getDirection(), maxDistance, 0.25,
                 entity -> entity instanceof Item && entity.isValid());
-            if (hit == null || !(hit.getHitEntity() instanceof Item item)) continue;
-            ItemStack stack = item.getItemStack();
+            Item aimed = hit != null && hit.getHitEntity() instanceof Item i ? i : null;
+            for (Item item : player.getWorld().getEntitiesByClass(Item.class)) {
+                if (!item.isValid()) continue;
+                double dist = player.getLocation().distanceSquared(item.getLocation());
+                boolean selected = item.equals(aimed) || (proximity > 0 && dist <= proximity * proximity)
+                    || (player.isSneaking() && sneakDistance > 0 && dist <= sneakDistance * sneakDistance);
+                if (!selected) continue;
+                UUID id = item.getUniqueId();
+                relevant.put(id, item);
+                visible.computeIfAbsent(id, k -> new HashSet<>()).add(player.getUniqueId());
+            }
+        }
+        for (Map.Entry<UUID, Item> entry : relevant.entrySet()) {
+            UUID id = entry.getKey(); Item item = entry.getValue();
+            TextDisplay d = detailLabels.get(id);
+            if (d == null || !d.isValid()) {
+                d = item.getWorld().spawn(item.getLocation(), TextDisplay.class, entity -> {
+                    entity.setPersistent(false);
+                    entity.setBillboard(Display.Billboard.CENTER);
+                    entity.setDefaultBackground(false);
+                    entity.setBackgroundColor(Color.fromARGB(0,0,0,0));
+                    entity.setShadowed(true);
+                    entity.setTeleportDuration(1);
+                    entity.setInterpolationDuration(1);
+                });
+                detailLabels.put(id, d);
+                for (Player viewer : Bukkit.getOnlinePlayers()) viewer.hideEntity(this, d);
+            }
+            d.teleport(item.getLocation().add(0, getConfig().getDouble("target-info.height-offset", 0.65), 0));
+            scale(d, getConfig().getDouble("target-info.scale", 0.48));
             Component info = Component.empty();
             boolean first = true;
-            for (Component part : infoParts(stack)) {
-                if (!first) info = info.append(colored(" &8| "));
+            for (Component part : infoParts(item.getItemStack())) {
+                if (!first) info = info.append(Component.newline());
                 info = info.append(part); first = false;
             }
-            if (!first) player.sendActionBar(info);
+            d.text(info);
+            Set<UUID> viewers = visible.get(id);
+            for (Player player : Bukkit.getOnlinePlayers()) {
+                if (viewers.contains(player.getUniqueId())) player.showEntity(this, d);
+                else player.hideEntity(this, d);
+            }
+            detailViewers.put(id, viewers);
         }
+        for (UUID id : new HashSet<>(detailLabels.keySet())) if (!relevant.containsKey(id)) removeDetail(id);
     }
     private List<Component> infoParts(ItemStack stack) {
         List<Component> parts = new ArrayList<>();
@@ -250,7 +348,7 @@ public final class BastionMCItemDisplay extends JavaPlugin implements Listener, 
         if (!sender.hasPermission("bastionitemdisplay.admin")) { sender.sendMessage(colored("&cSin permiso.")); return true; }
         if (command.getName().equalsIgnoreCase("itemdisplay")) {
             if (args.length == 1 && args[0].equalsIgnoreCase("reload")) {
-                reloadConfig(); restoreGlow(); clearLabels(); startTasks(); send(sender, "reloaded");
+                reloadConfig(); restoreGlow(); clearTeams(); clearLabels(); clearDetails(); startTasks(); send(sender, "reloaded");
             } else sender.sendMessage(colored("&e/itemdisplay reload"));
             return true;
         }

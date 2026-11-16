@@ -3,8 +3,9 @@
 # Los colores de rareza afectan particulas y etiquetas informativas, no el nombre.
 display:
   enabled: true
-  height-offset: 0.55
-  update-ticks: 5
+  height-offset: 0.35
+  scale: 0.65
+  update-ticks: 1
   max-distance: 32
   show-amount: true
   amount-format: ' &7x%amount%'
@@ -14,6 +15,11 @@ display:
   # Si es true, oculta la etiqueta al recoger/desaparecer el item.
 target-info:
   enabled: true
+  # Segundo holograma solo visible al apuntar, acercarse o agacharse.
+  height-offset: 0.75
+  scale: 0.48
+  proximity-distance: 1.0
+  sneak-distance: 3.0
   max-distance: 5
   update-ticks: 5
   show-name: true
@@ -25,6 +31,9 @@ target-info:
   format: '&f%name% &8| %rarity% &8| &b%enchants% &8| &c%stats% &8| &7x%amount%'
 effects:
   enabled: true
+  colored-glow: true
+  # El brillo de equipos usa el color legacy mas cercano al HEX.
+  # Puede entrar en conflicto con otros plugins que gestionan scoreboards.
   update-ticks: 20
   max-distance: 16
   particle-count: 3
