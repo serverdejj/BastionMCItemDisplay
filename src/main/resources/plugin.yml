@@ -1,0 +1,19 @@
+name: BastionMCItemDisplay
+version: 0.1.0-beta
+main: com.bastionmc.itemdisplay.BastionMCItemDisplay
+api-version: '1.21.11'
+author: BASTION MC
+description: Dropped item labels, custom rarity and visual effects
+commands:
+  rareza:
+    description: Asigna o restaura la rareza de un objeto
+    usage: /rareza item <comun|pococomun|raro|epico|legendario|mitico|reset>
+    permission: bastionitemdisplay.admin
+  itemdisplay:
+    description: Recarga la configuracion
+    usage: /itemdisplay reload
+    permission: bastionitemdisplay.admin
+permissions:
+  bastionitemdisplay.admin:
+    description: Gestion de rarezas y configuracion
+    default: op

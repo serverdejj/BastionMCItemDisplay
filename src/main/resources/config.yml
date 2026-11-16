@@ -1,0 +1,68 @@
+# BastionMCItemDisplay - Purpur 1.21.11
+# El color del nombre SIEMPRE se toma del nombre original/personalizado del item.
+# Los colores de rareza afectan particulas y etiquetas informativas, no el nombre.
+display:
+  enabled: true
+  height-offset: 0.55
+  update-ticks: 5
+  max-distance: 32
+  show-amount: true
+  amount-format: ' &7x%amount%'
+  background: false
+  shadow: true
+  see-through: false
+  # Si es true, oculta la etiqueta al recoger/desaparecer el item.
+target-info:
+  enabled: true
+  max-distance: 5
+  update-ticks: 5
+  show-name: true
+  show-rarity: true
+  show-enchantments: true
+  show-combat-stats: true
+  show-amount: true
+  max-enchantments: 2
+  format: '&f%name% &8| %rarity% &8| &b%enchants% &8| &c%stats% &8| &7x%amount%'
+effects:
+  enabled: true
+  update-ticks: 20
+  max-distance: 16
+  particle-count: 3
+rarities:
+  comun:
+    label: '&7COMÚN'
+    color: '#AAAAAA'
+    glowing: false
+    particles: false
+  pococomun:
+    label: '&fPOCO COMÚN'
+    color: '#FFFFFF'
+    glowing: false
+    particles: true
+  raro:
+    label: '&aRARO'
+    color: '#55FF55'
+    glowing: true
+    particles: true
+  epico:
+    label: '&5ÉPICO'
+    color: '#AA00AA'
+    glowing: true
+    particles: true
+  legendario:
+    label: '&6LEGENDARIO'
+    color: '#FFAA00'
+    glowing: true
+    particles: true
+  mitico:
+    label: '&cMÍTICO'
+    color: '#FF5555'
+    glowing: true
+    particles: true
+messages:
+  prefix: '&#AA00AA&lBASTION &8» &r'
+  no-item: '&cDebes sostener un objeto en la mano principal.'
+  rarity-set: '&aRareza del objeto establecida: %rarity%'
+  rarity-reset: '&aRareza personalizada eliminada. Se usará la rareza nativa.'
+  invalid-rarity: '&cRareza no válida.'
+  reloaded: '&aConfiguración recargada.'
