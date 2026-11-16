@@ -34,6 +34,7 @@ public final class BastionMCItemDisplay extends JavaPlugin implements Listener, 
     private NamespacedKey rarityKey;
     private final Map<UUID, TextDisplay> labels = new HashMap<>();
     private final Map<UUID, TextDisplay> detailLabels = new HashMap<>();
+    private final Map<UUID, List<TextDisplay>> detailExtras = new HashMap<>();
     private final Map<UUID, Set<UUID>> detailViewers = new HashMap<>();
     private final Map<UUID, String> glowTeams = new HashMap<>();
     private final Map<UUID, Boolean> oldGlow = new HashMap<>();
@@ -281,6 +282,8 @@ public final class BastionMCItemDisplay extends JavaPlugin implements Listener, 
     private void removeDetail(UUID id) {
         TextDisplay d = detailLabels.remove(id);
         if (d != null && d.isValid()) d.remove();
+        for (TextDisplay extra : detailExtras.getOrDefault(id, List.of())) if (extra.isValid()) extra.remove();
+        detailExtras.remove(id);
         detailViewers.remove(id);
     }
     private void clearDetails() { for (UUID id : new HashSet<>(detailLabels.keySet())) removeDetail(id); }
@@ -323,19 +326,46 @@ public final class BastionMCItemDisplay extends JavaPlugin implements Listener, 
                 detailLabels.put(id, d);
                 for (Player viewer : Bukkit.getOnlinePlayers()) viewer.hideEntity(this, d);
             }
-            d.teleport(item.getLocation().add(0, getConfig().getDouble("target-info.height-offset", 0.65), 0));
-            scale(d, getConfig().getDouble("target-info.scale", 0.48));
-            Component info = Component.empty();
-            boolean first = true;
-            for (Component part : infoParts(item.getItemStack(), displayedAmount(item))) {
-                if (!first) info = info.append(Component.newline());
-                info = info.append(part); first = false;
+            List<Component> lines = infoParts(item.getItemStack(), displayedAmount(item));
+            // Separate TextDisplays permit a smaller font for enchantment lines.
+            List<TextDisplay> extras = detailExtras.computeIfAbsent(id, ignored -> new ArrayList<>());
+            while (extras.size() < lines.size() - 1) {
+                TextDisplay extra = item.getWorld().spawn(item.getLocation(), TextDisplay.class, entity -> {
+                    entity.setPersistent(false);
+                    entity.setBillboard(Display.Billboard.CENTER);
+                    entity.setDefaultBackground(false);
+                    entity.setBackgroundColor(Color.fromARGB(0,0,0,0));
+                    entity.setShadowed(true);
+                    entity.setTeleportDuration(1);
+                    entity.setInterpolationDuration(1);
+                });
+                for (Player viewer : Bukkit.getOnlinePlayers()) viewer.hideEntity(this, extra);
+                extras.add(extra);
             }
-            d.text(info);
+            while (extras.size() > lines.size() - 1) {
+                TextDisplay old = extras.remove(extras.size() - 1);
+                if (old.isValid()) old.remove();
+            }
+            double baseHeight = getConfig().getDouble("target-info.height-offset", 0.75);
+            double spacing = getConfig().getDouble("target-info.line-spacing", 0.17);
+            d.teleport(item.getLocation().add(0, baseHeight + spacing * (lines.size() - 1), 0));
+            scale(d, getConfig().getDouble("target-info.scale", 0.48));
+            d.text(lines.get(0));
+            for (int line = 1; line < lines.size(); line++) {
+                TextDisplay extra = extras.get(line - 1);
+                extra.teleport(item.getLocation().add(0, baseHeight + spacing * (lines.size() - 1 - line), 0));
+                scale(extra, getConfig().getDouble("target-info.enchantments.scale", 0.32));
+                extra.text(lines.get(line));
+            }
             Set<UUID> viewers = visible.get(id);
             for (Player player : Bukkit.getOnlinePlayers()) {
-                if (viewers.contains(player.getUniqueId())) player.showEntity(this, d);
-                else player.hideEntity(this, d);
+                if (viewers.contains(player.getUniqueId())) {
+                    player.showEntity(this, d);
+                    for (TextDisplay extra : extras) player.showEntity(this, extra);
+                } else {
+                    player.hideEntity(this, d);
+                    for (TextDisplay extra : extras) player.hideEntity(this, extra);
+                }
             }
             detailViewers.put(id, viewers);
         }
@@ -394,19 +424,31 @@ public final class BastionMCItemDisplay extends JavaPlugin implements Listener, 
         }
         return result;
     }
+    private boolean isArmorItem(ItemStack stack) {
+        String material = stack.getType().name();
+        return material.endsWith("_HELMET") || material.endsWith("_CHESTPLATE")
+            || material.endsWith("_LEGGINGS") || material.endsWith("_BOOTS")
+            || material.equals("TURTLE_HELMET") || material.equals("ELYTRA")
+            || material.equals("CARVED_PUMPKIN") || material.equals("PLAYER_HEAD")
+            || material.endsWith("_HEAD") || material.endsWith("_SKULL");
+    }
     private List<Component> infoParts(ItemStack stack, long amount) {
         List<Component> parts = new ArrayList<>();
         if (getConfig().getBoolean("target-info.show-name", true)) parts.add(itemName(stack));
         String r = rarity(stack);
         if (getConfig().getBoolean("target-info.show-rarity", true)) parts.add(colored(getConfig().getString("rarities." + r + ".label", r)));
         if (getConfig().getBoolean("target-info.show-enchantments", true) && !stack.getEnchantments().isEmpty()) {
-            int max = Math.max(1, getConfig().getInt("target-info.max-enchantments", 2));
-            StringJoiner join = new StringJoiner(", ");
-            stack.getEnchantments().entrySet().stream().limit(max).forEach(e -> join.add(enchantmentName(e.getKey().getKey().getKey()) + " " + roman(e.getValue())));
-            if (stack.getEnchantments().size() > max) join.add("+" + (stack.getEnchantments().size() - max));
-            parts.add(colored(getConfig().getString("enchantments.color", "&b") + join));
+            int perLine = Math.max(1, getConfig().getInt("target-info.enchantments.per-line", 2));
+            String separator = getConfig().getString("target-info.enchantments.separator", " · ");
+            List<String> enchants = new ArrayList<>();
+            stack.getEnchantments().forEach((enchant, level) ->
+                enchants.add(enchantmentName(enchant.getKey().getKey()) + " " + roman(level)));
+            for (int i = 0; i < enchants.size(); i += perLine) {
+                parts.add(colored(getConfig().getString("enchantments.color", "&b") +
+                    String.join(separator, enchants.subList(i, Math.min(i + perLine, enchants.size())))));
+            }
         }
-        if (getConfig().getBoolean("durability-display.enabled", true) && stack.getType().getMaxDurability() > 0) {
+        if (getConfig().getBoolean("durability-display.enabled", true) && isArmorItem(stack) && stack.getType().getMaxDurability() > 0) {
             org.bukkit.inventory.meta.Damageable damageable = stack.getItemMeta() instanceof org.bukkit.inventory.meta.Damageable d ? d : null;
             int max = stack.getType().getMaxDurability();
             if (damageable != null && damageable.hasMaxDamage()) max = damageable.getMaxDamage();

@@ -23,3 +23,8 @@ Proyecto fuente para **Purpur 1.21.11 / Java 21**. Subir a GitHub y compilar con
 
 ## Actualización 0.2.1
 Encantamientos traducidos al español en `config.yml`, niveles romanos e iconos de armadura configurables sin resource pack. Los iconos son caracteres Unicode, no la textura vanilla. Los puntos de armadura se calculan por material vanilla, con overrides configurables para objetos especiales; no representan necesariamente modificadores personalizados de otros plugins.
+
+## v0.2.3 beta
+- Encantamientos completos, dos por línea, con escala independiente y sin +N.
+- Durabilidad restringida a piezas de armadura y objetos equipables definidos.
+- Segundo holograma dividido en líneas sincronizadas.

@@ -28,7 +28,11 @@ target-info:
   show-enchantments: true
   show-combat-stats: true
   show-amount: true
-  max-enchantments: 2
+  line-spacing: 0.17
+  enchantments:
+    scale: 0.32
+    per-line: 2
+    separator: " · "
   format: '&f%name% &8| %rarity% &8| &b%enchants% &8| &c%stats% &8| &7x%amount%'
 effects:
   enabled: true
@@ -130,7 +134,7 @@ enchantments:
 itemstacker:
   enabled: true
 
-# Porcentaje de durabilidad para armas, herramientas y armaduras.
+# Porcentaje de durabilidad solo para piezas equipables en ranuras de armadura.
 durability-display:
   enabled: true
   format: '&7Durabilidad: %color%%percent%%'
