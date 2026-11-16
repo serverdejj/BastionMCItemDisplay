@@ -8,6 +8,7 @@ display:
   update-ticks: 1
   max-distance: 32
   show-amount: true
+  show-single-amount: false
   amount-format: ' &7x%amount%'
   background: false
   shadow: true
@@ -124,10 +125,27 @@ enchantments:
     breach: 'Brecha'
     wind_burst: 'Ráfaga de viento'
 
+# ItemStacker 1.1.0 guarda la cantidad agrupada en un contador virtual.
+# Se lee directamente cuando el plugin está instalado; sin ItemStacker se usa Minecraft.
+itemstacker:
+  enabled: true
+
+# Porcentaje de durabilidad para armas, herramientas y armaduras.
+durability-display:
+  enabled: true
+  format: '&7Durabilidad: %color%%percent%%'
+  thresholds:
+    high: 75
+    low: 25
+  colors:
+    high: '&a'
+    medium: '&e'
+    low: '&c'
+
 # Símbolos editables SIN paquete de recursos.
 # No son la textura exacta de la barra de armadura de Minecraft.
 armor-display:
-  enabled: true
+  enabled: false
   prefix: '&7Armadura: '
   show-icons: true
   show-empty-icons: false

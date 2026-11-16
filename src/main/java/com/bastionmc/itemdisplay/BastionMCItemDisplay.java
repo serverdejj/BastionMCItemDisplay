@@ -133,10 +133,30 @@ public final class BastionMCItemDisplay extends JavaPlugin implements Listener, 
         }
         return rarity(clone);
     }
-    private Component label(ItemStack stack) {
+    // ItemStacker 1.1.0 maintains a virtual group total which can exceed the
+    // physical ItemStack amount. Reflection keeps ItemStacker an optional dependency.
+    private long displayedAmount(Item item) {
+        long physical = item.getItemStack().getAmount();
+        if (!getConfig().getBoolean("itemstacker.enabled", true)
+                || !Bukkit.getPluginManager().isPluginEnabled("ItemStacker")) return physical;
+        try {
+            Class<?> managerClass = Class.forName("me.itemstacker.managers.Manager");
+            Object manager = managerClass.getMethod("get").invoke(null);
+            if (manager == null) return physical;
+            Object group = managerClass.getMethod("group", int.class).invoke(manager, item.getEntityId());
+            if (group == null) return physical;
+            java.lang.reflect.Field field = group.getClass().getDeclaredField("total");
+            field.setAccessible(true);
+            long total = field.getLong(group);
+            return total > 0 ? Math.max(physical, total) : physical;
+        } catch (ReflectiveOperationException | LinkageError | SecurityException ex) {
+            return physical;
+        }
+    }
+    private Component label(ItemStack stack, long amount) {
         Component name = itemName(stack);
-        if (getConfig().getBoolean("display.show-amount", true) && stack.getAmount() > 1)
-            name = name.append(colored(getConfig().getString("display.amount-format", " &7x%amount%").replace("%amount%", Integer.toString(stack.getAmount()))));
+        if (getConfig().getBoolean("display.show-amount", true) && (amount > 1 || getConfig().getBoolean("display.show-single-amount", false)))
+            name = name.append(colored(getConfig().getString("display.amount-format", " &7x%amount%").replace("%amount%", Long.toString(amount))));
         return name;
     }
     private boolean isNearby(Item item, double range) {
@@ -169,7 +189,7 @@ public final class BastionMCItemDisplay extends JavaPlugin implements Listener, 
             }
             display.teleport(item.getLocation().add(0, getConfig().getDouble("display.height-offset", 0.35), 0));
             scale(display, getConfig().getDouble("display.scale", 0.65));
-            display.text(label(item.getItemStack()));
+            display.text(label(item.getItemStack(), displayedAmount(item)));
         }
         for (UUID id : new HashSet<>(labels.keySet())) if (!active.contains(id)) removeLabel(id);
     }
@@ -307,7 +327,7 @@ public final class BastionMCItemDisplay extends JavaPlugin implements Listener, 
             scale(d, getConfig().getDouble("target-info.scale", 0.48));
             Component info = Component.empty();
             boolean first = true;
-            for (Component part : infoParts(item.getItemStack())) {
+            for (Component part : infoParts(item.getItemStack(), displayedAmount(item))) {
                 if (!first) info = info.append(Component.newline());
                 info = info.append(part); first = false;
             }
@@ -374,7 +394,7 @@ public final class BastionMCItemDisplay extends JavaPlugin implements Listener, 
         }
         return result;
     }
-    private List<Component> infoParts(ItemStack stack) {
+    private List<Component> infoParts(ItemStack stack, long amount) {
         List<Component> parts = new ArrayList<>();
         if (getConfig().getBoolean("target-info.show-name", true)) parts.add(itemName(stack));
         String r = rarity(stack);
@@ -386,7 +406,23 @@ public final class BastionMCItemDisplay extends JavaPlugin implements Listener, 
             if (stack.getEnchantments().size() > max) join.add("+" + (stack.getEnchantments().size() - max));
             parts.add(colored(getConfig().getString("enchantments.color", "&b") + join));
         }
-        if (getConfig().getBoolean("armor-display.enabled", true)) {
+        if (getConfig().getBoolean("durability-display.enabled", true) && stack.getType().getMaxDurability() > 0) {
+            org.bukkit.inventory.meta.Damageable damageable = stack.getItemMeta() instanceof org.bukkit.inventory.meta.Damageable d ? d : null;
+            int max = stack.getType().getMaxDurability();
+            if (damageable != null && damageable.hasMaxDamage()) max = damageable.getMaxDamage();
+            if (max > 0) {
+                int damage = damageable == null ? 0 : Math.max(0, damageable.getDamage());
+                int percent = (int) Math.round(100.0 * Math.max(0, max - damage) / max);
+                int high = getConfig().getInt("durability-display.thresholds.high", 75);
+                int low = getConfig().getInt("durability-display.thresholds.low", 25);
+                String color = percent >= high ? getConfig().getString("durability-display.colors.high", "&a")
+                        : percent <= low ? getConfig().getString("durability-display.colors.low", "&c")
+                        : getConfig().getString("durability-display.colors.medium", "&e");
+                String format = getConfig().getString("durability-display.format", "&7Durabilidad: %color%%percent%%");
+                parts.add(colored(format.replace("%color%", color).replace("%percent%", Integer.toString(percent))));
+            }
+        }
+        if (getConfig().getBoolean("armor-display.enabled", false)) {
             double armor = armorPoints(stack);
             if (armor > 0) {
                 Component line = colored(getConfig().getString("armor-display.prefix", "&7Armadura: "));
@@ -409,7 +445,7 @@ public final class BastionMCItemDisplay extends JavaPlugin implements Listener, 
                 if (stats.length() > 0) parts.add(colored("&c" + stats));
             }
         }
-        if (getConfig().getBoolean("target-info.show-amount", true)) parts.add(colored("&7x" + stack.getAmount()));
+        if (getConfig().getBoolean("target-info.show-amount", true)) parts.add(colored("&7x" + amount));
         return parts;
     }
     @Override public boolean onCommand(CommandSender sender, Command command, String alias, String[] args) {

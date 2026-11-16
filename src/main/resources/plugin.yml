@@ -1,7 +1,8 @@
 name: BastionMCItemDisplay
-version: 0.1.0-beta
+version: 0.2.2-beta
 main: com.bastionmc.itemdisplay.BastionMCItemDisplay
 api-version: '1.21.11'
+softdepend: [ItemStacker]
 author: BASTION MC
 description: Dropped item labels, custom rarity and visual effects
 commands:
