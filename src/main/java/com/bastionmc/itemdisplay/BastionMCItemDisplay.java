@@ -39,7 +39,7 @@ public final class BastionMCItemDisplay extends JavaPlugin implements Listener, 
     private final Map<UUID, String> glowTeams = new HashMap<>();
     private final Map<UUID, Boolean> oldGlow = new HashMap<>();
     private final List<BukkitTask> tasks = new ArrayList<>();
-    private static final List<String> RARITIES = List.of("comun", "pococomun", "raro", "epico", "legendario", "mitico");
+    private static final List<String> RARITIES = List.of("comun", "pococomun", "raro", "muyraro", "epico", "legendario", "mitico", "divino");
     private static final Pattern HEX = Pattern.compile("&#([0-9a-fA-F]{6})");
     private final LegacyComponentSerializer serializer = LegacyComponentSerializer.legacySection();
 
@@ -271,7 +271,7 @@ public final class BastionMCItemDisplay extends JavaPlugin implements Listener, 
         }
         glowTeams.clear();
         for (String rarity : RARITIES) {
-            Team team = board.getTeam("bid_" + rarity);
+            Team team = board.getTeam("bid_" + rarity.substring(0, Math.min(10, rarity.length())));
             if (team != null && team.getEntries().isEmpty()) team.unregister();
         }
     }
@@ -499,7 +499,7 @@ public final class BastionMCItemDisplay extends JavaPlugin implements Listener, 
             return true;
         }
         if (args.length != 2 || !args[0].equalsIgnoreCase("item")) {
-            sender.sendMessage(colored("&e/rareza item <comun|pococomun|raro|epico|legendario|mitico|reset>")); return true;
+            sender.sendMessage(colored("&e/rareza item <comun|pococomun|raro|muyraro|epico|legendario|mitico|divino|reset>")); return true;
         }
         if (!(sender instanceof Player player)) { sender.sendMessage("Solo jugadores."); return true; }
         ItemStack stack = player.getInventory().getItemInMainHand();

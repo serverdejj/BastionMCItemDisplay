@@ -58,6 +58,11 @@ rarities:
     color: '#55FF55'
     glowing: true
     particles: true
+  muyraro:
+    label: '&9MUY RARO'
+    color: '#5555FF'
+    glowing: true
+    particles: true
   epico:
     label: '&5ÉPICO'
     color: '#AA00AA'
@@ -71,6 +76,11 @@ rarities:
   mitico:
     label: '&cMÍTICO'
     color: '#FF5555'
+    glowing: true
+    particles: true
+  divino:
+    label: '&dDIVINO'
+    color: '#FF55FF'
     glowing: true
     particles: true
 messages:

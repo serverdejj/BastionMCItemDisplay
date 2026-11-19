@@ -28,3 +28,11 @@ Encantamientos traducidos al español en `config.yml`, niveles romanos e iconos 
 - Encantamientos completos, dos por línea, con escala independiente y sin +N.
 - Durabilidad restringida a piezas de armadura y objetos equipables definidos.
 - Segundo holograma dividido en líneas sincronizadas.
+
+
+## Nuevas rarezas (0.2.4-beta)
+
+- `/rareza item muyraro`: **MUY RARO**, azul (`&9`, `#5555FF`).
+- `/rareza item divino`: **DIVINO**, morado claro (`&d`, `#FF55FF`).
+- Ambas aparecen en TAB, etiquetas, partículas y brillo según `config.yml`.
+- Si ya tienes `plugins/BastionMCItemDisplay/config.yml`, agrega manualmente las secciones `rarities.muyraro` y `rarities.divino`, porque Bukkit no reemplaza automáticamente tu configuración existente. Luego ejecuta `/itemdisplay reload`.
