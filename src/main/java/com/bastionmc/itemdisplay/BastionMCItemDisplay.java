@@ -37,6 +37,8 @@ public final class BastionMCItemDisplay extends JavaPlugin implements Listener, 
     private final Map<UUID, List<TextDisplay>> detailExtras = new HashMap<>();
     private final Map<UUID, Set<UUID>> detailViewers = new HashMap<>();
     private final Map<UUID, String> glowTeams = new HashMap<>();
+    // Store every scoreboard touched so we can remove our teams safely on reload/disable.
+    private final Set<Scoreboard> managedGlowBoards = Collections.newSetFromMap(new IdentityHashMap<>());
     private final Map<UUID, Boolean> oldGlow = new HashMap<>();
     private final List<BukkitTask> tasks = new ArrayList<>();
     private static final List<String> RARITIES = List.of("comun", "pococomun", "raro", "muyraro", "epico", "legendario", "mitico", "divino");
@@ -205,7 +207,7 @@ public final class BastionMCItemDisplay extends JavaPlugin implements Listener, 
         if (display != null && display.isValid()) display.remove();
     }
     private void clearLabels() { for (UUID id : new HashSet<>(labels.keySet())) removeLabel(id); }
-    @EventHandler public void onItemDespawn(ItemDespawnEvent event) { removeLabel(event.getEntity().getUniqueId()); }
+    @EventHandler public void onItemDespawn(ItemDespawnEvent event) { removeLabel(event.getEntity().getUniqueId()); restoreGlow(event.getEntity()); }
     @EventHandler public void onItemPickup(EntityPickupItemEvent event) { Bukkit.getScheduler().runTask(this, () -> {
         Item item = event.getItem(); if (!item.isValid()) removeLabel(item.getUniqueId());
     }); }
@@ -239,41 +241,59 @@ public final class BastionMCItemDisplay extends JavaPlugin implements Listener, 
             else oldGlow.remove(id);
         }
     }
+    private String glowTeamName(String rarity) {
+        return "bid_" + rarity.substring(0, Math.min(10, rarity.length()));
+    }
+    private Set<Scoreboard> viewerScoreboards() {
+        Set<Scoreboard> boards = Collections.newSetFromMap(new IdentityHashMap<>());
+        boards.add(Bukkit.getScoreboardManager().getMainScoreboard());
+        for (Player player : Bukkit.getOnlinePlayers()) boards.add(player.getScoreboard());
+        return boards;
+    }
     private void assignGlowTeam(Item item, String rarity) {
-        // Scoreboard teams provide the colored outline; may conflict with other scoreboard plugins.
+        // The entity's outline color comes from the VIEWER's scoreboard team.
+        // Most sidebar plugins give each player a separate scoreboard, so the main one alone is insufficient.
         if (!getConfig().getBoolean("effects.colored-glow", true)) return;
-        String teamName = "bid_" + rarity.substring(0, Math.min(10, rarity.length()));
-        Scoreboard board = Bukkit.getScoreboardManager().getMainScoreboard();
-        Team team = board.getTeam(teamName);
-        if (team == null) team = board.registerNewTeam(teamName);
-        String hex = getConfig().getString("rarities." + rarity + ".color", "#FFFFFF");
-        NamedTextColor nearest = NamedTextColor.nearestTo(net.kyori.adventure.text.format.TextColor.fromHexString(hex));
-        team.color(nearest);
+        String teamName = glowTeamName(rarity);
         String entry = item.getUniqueId().toString();
         String old = glowTeams.put(item.getUniqueId(), teamName);
-        if (old != null && !old.equals(teamName)) {
-            Team previous = board.getTeam(old);
-            if (previous != null) previous.removeEntry(entry);
+        String hex = getConfig().getString("rarities." + rarity + ".color", "#FFFFFF");
+        net.kyori.adventure.text.format.TextColor parsed = net.kyori.adventure.text.format.TextColor.fromHexString(hex);
+        NamedTextColor nearest = parsed == null ? NamedTextColor.WHITE : NamedTextColor.nearestTo(parsed);
+        for (Scoreboard board : viewerScoreboards()) {
+            managedGlowBoards.add(board);
+            Team team = board.getTeam(teamName);
+            if (team == null) team = board.registerNewTeam(teamName);
+            team.color(nearest);
+            // An entry cannot belong to two teams on the same board.
+            if (old != null && !old.equals(teamName)) {
+                Team previous = board.getTeam(old);
+                if (previous != null) previous.removeEntry(entry);
+            }
+            if (!team.hasEntry(entry)) team.addEntry(entry);
         }
-        team.addEntry(entry);
     }
     private void clearTeam(Item item) {
         String name = glowTeams.remove(item.getUniqueId());
         if (name == null) return;
-        Team team = Bukkit.getScoreboardManager().getMainScoreboard().getTeam(name);
-        if (team != null) team.removeEntry(item.getUniqueId().toString());
+        for (Scoreboard board : managedGlowBoards) {
+            Team team = board.getTeam(name);
+            if (team != null) team.removeEntry(item.getUniqueId().toString());
+        }
     }
     private void clearTeams() {
-        Scoreboard board = Bukkit.getScoreboardManager().getMainScoreboard();
-        for (Map.Entry<UUID, String> e : glowTeams.entrySet()) {
-            Team team = board.getTeam(e.getValue());
-            if (team != null) team.removeEntry(e.getKey().toString());
+        for (Scoreboard board : managedGlowBoards) {
+            for (Map.Entry<UUID, String> e : glowTeams.entrySet()) {
+                Team team = board.getTeam(e.getValue());
+                if (team != null) team.removeEntry(e.getKey().toString());
+            }
+            for (String rarity : RARITIES) {
+                Team team = board.getTeam(glowTeamName(rarity));
+                if (team != null && team.getEntries().isEmpty()) team.unregister();
+            }
         }
         glowTeams.clear();
-        for (String rarity : RARITIES) {
-            Team team = board.getTeam("bid_" + rarity.substring(0, Math.min(10, rarity.length())));
-            if (team != null && team.getEntries().isEmpty()) team.unregister();
-        }
+        managedGlowBoards.clear();
     }
     private void restoreGlow(Item item) { clearTeam(item); Boolean prior = oldGlow.remove(item.getUniqueId()); if (prior != null && item.isValid()) item.setGlowing(prior); }
     private void restoreGlow() { for (UUID id : new HashSet<>(oldGlow.keySet())) {

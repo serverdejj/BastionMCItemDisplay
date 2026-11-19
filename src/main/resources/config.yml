@@ -38,7 +38,8 @@ effects:
   enabled: true
   colored-glow: true
   # El brillo de equipos usa el color legacy mas cercano al HEX.
-  # Puede entrar en conflicto con otros plugins que gestionan scoreboards.
+  # Se aplica en el scoreboard principal y en los scoreboards activos de los jugadores.
+  # Plugins de scoreboard pueden seguir reemplazando los equipos; se reintenta cada update-ticks.
   update-ticks: 20
   max-distance: 16
   particle-count: 3
